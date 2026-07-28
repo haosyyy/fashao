@@ -396,7 +396,7 @@ function calculate(){
 
   let freqHtml = "";
   if (!freq){
-    freqHtml = `<div class="alert info">Temperature is below 37.6&deg;C. Paracetamol is generally only needed for fever \u2014 no dosing frequency is indicated at this reading. Recheck temperature if your child seems unwell.</div>`;
+    freqHtml = `<div class="alert info">⚠️Temperature is below 37.6&deg;C. Paracetamol is generally only needed for fever \u2014 no dosing frequency is indicated at this reading. Recheck temperature if your child seems unwell.⚠️</div>`;
   } else {
     const intervalHours = freq.level === "high" ? 4 : 6;
     const rawNextDose = new Date(Date.now() + intervalHours * 60 * 60 * 1000);
