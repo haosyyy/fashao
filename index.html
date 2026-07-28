@@ -164,9 +164,10 @@
   }
   .vial{
     flex-shrink:0;
-    width:64px;
-    height:78px;
+    width:100px;
+    height:39px;
   }
+  .dose-hero{ align-items:center; }
   .dose-num{
     font-family:'Fraunces', Georgia, serif;
     font-size:44px;
@@ -216,8 +217,8 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">Child dosing tool</div>
-    <h1>Axcel Paracetamol syrup based on Singhealth Dosing Guidlines</h1>
+    <div class="eyebrow">Child dosing helper</div>
+    <h1>Paracetamol syrup, measured right</h1>
     <p class="sub">Enter your child's weight and temperature to get the dose in mL and how often to give it, based on the prescribed dosing chart.</p>
   </header>
 
@@ -243,11 +244,11 @@
       <fieldset class="conc-options">
         <div class="conc-opt">
           <input type="radio" name="conc" id="conc120" value="120" checked>
-          <label for="conc120">120 mg / 5 mL<br><span style="font-weight:400;font-size:12px;">(cherry🍒 flavour)</span></label>
+          <label for="conc120">120 mg / 5 mL<br><span style="font-weight:400;font-size:12px;">(standard)</span></label>
         </div>
         <div class="conc-opt">
           <input type="radio" name="conc" id="conc250" value="250">
-          <label for="conc250">250 mg / 5 mL<br><span style="font-weight:400;font-size:12px;">(orange🍊 flavour)</span></label>
+          <label for="conc250">250 mg / 5 mL<br><span style="font-weight:400;font-size:12px;">(if stated)</span></label>
         </div>
       </fieldset>
     </div>
@@ -263,6 +264,10 @@
 
   <div class="note">
     <strong>Not a substitute for medical advice.</strong> This tool follows a general weight-based dosing chart. Always follow your doctor's or pharmacist's specific instructions if they differ from this. Seek medical care if your child is under 3 months old, temperature is 39&deg;C or higher, or fever lasts more than 2 days.
+  </div>
+
+  <div style="text-align:center; margin-top:22px;">
+    <a href="https://for.sg/panadol" target="_blank" rel="noopener noreferrer" style="color:var(--teal); font-size:13.5px; font-weight:600; text-decoration:underline;">Guide to paracetamol syrup for fever</a>
   </div>
 
 </div>
@@ -299,6 +304,50 @@ function frequencyFor(temp){
     return { text: "Every 6 hours", note: "Up to 4 times in 24 hours", level: "mild" };
   }
   return null; // below fever threshold
+}
+
+function syringeSVG(doseMl){
+  const capped = Math.max(0, Math.min(doseMl, 10)); // gauge maxes out at 10ml
+  const pct = capped / 10;
+  const barrelX = 26, barrelY = 20, barrelW = 100, barrelH = 22;
+  const fillW = barrelW * pct;
+
+  let ticks = '';
+  for (let i = 1; i <= 10; i++){
+    const x = barrelX + (barrelW * i / 10);
+    const isMajor = i % 2 === 0;
+    const tickH = isMajor ? 10 : 6;
+    ticks += `<line x1="${x}" y1="${barrelY}" x2="${x}" y2="${barrelY + tickH}" stroke="#184A40" stroke-width="${isMajor ? 1.2 : 0.8}" opacity="${isMajor ? 0.55 : 0.3}"/>`;
+    if (isMajor){
+      ticks += `<text x="${x}" y="${barrelY + barrelH + 11}" font-size="7" fill="#55655F" text-anchor="middle" font-family="Inter, sans-serif">${i}</text>`;
+    }
+  }
+
+  return `
+  <svg class="vial" viewBox="0 0 160 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="6" y="29" width="6" height="4" rx="1" fill="#8FA69E"/>
+    <rect x="10" y="27" width="16" height="8" rx="1.5" fill="#B8C9C3"/>
+    <rect x="${barrelX}" y="${barrelY}" width="${barrelW}" height="${barrelH}" rx="4" fill="#F5F8F7" stroke="#2A6B5E" stroke-width="1.5"/>
+    <clipPath id="barrelClip"><rect x="${barrelX}" y="${barrelY}" width="${barrelW}" height="${barrelH}" rx="4"/></clipPath>
+    <rect x="${barrelX}" y="${barrelY}" width="${fillW}" height="${barrelH}" fill="#2A6B5E" opacity="0.78" clip-path="url(#barrelClip)"/>
+    ${ticks}
+    <rect x="${barrelX + barrelW}" y="${barrelY + 8}" width="26" height="6" fill="#2A6B5E"/>
+    <rect x="${barrelX + barrelW + 24}" y="${barrelY - 4}" width="6" height="30" rx="2" fill="#2A6B5E"/>
+  </svg>`;
+}
+
+function roundToNearestHalfHour(date){
+  const ms = 30 * 60 * 1000;
+  return new Date(Math.round(date.getTime() / ms) * ms);
+}
+
+function formatDoseTime(date){
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return minutes === 0 ? `${hours}${ampm}` : `${hours}:${String(minutes).padStart(2, '0')}${ampm}`;
 }
 
 function calculate(){
@@ -345,20 +394,21 @@ function calculate(){
   if (!freq){
     freqHtml = `<div class="alert info">Temperature is below 37.6&deg;C. Paracetamol is generally only needed for fever \u2014 no dosing frequency is indicated at this reading. Recheck temperature if your child seems unwell.</div>`;
   } else {
+    const intervalHours = freq.level === "high" ? 4 : 6;
+    const rawNextDose = new Date(Date.now() + intervalHours * 60 * 60 * 1000);
+    const nextDoseTime = roundToNearestHalfHour(rawNextDose);
+    const nextDoseStr = formatDoseTime(nextDoseTime);
     freqHtml = `
       <div class="row"><span class="k">How often</span><span class="v">${freq.text}</span></div>
       <div class="row"><span class="k">Frequency limit</span><span class="v">${freq.note}</span></div>
+      <div class="row"><span class="k">Next Dose (if required)</span><span class="v">${nextDoseStr}</span></div>
     `;
   }
 
   resultBox.classList.add('show');
   resultBox.innerHTML = `
     <div class="dose-hero">
-      <svg class="vial" viewBox="0 0 64 78" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="20" y="4" width="24" height="10" rx="2" fill="#2A6B5E"/>
-        <path d="M24 14 H40 V26 L48 68 C48 72.4183 44.4183 76 40 76 H24 C19.5817 76 16 72.4183 16 68 L24 26 Z" fill="#E3EFEB" stroke="#2A6B5E" stroke-width="2"/>
-        <path d="M18.8 50 L45.2 50 L40.5 71 C39.8 74 37.9 74 36 74 L28 74 C26.1 74 24.2 74 23.5 71 Z" fill="#2A6B5E" opacity="0.55"/>
-      </svg>
+      ${syringeSVG(doseMl)}
       <div>
         <div class="dose-num">${doseMl}<span>mL</span></div>
         <div class="dose-caption">for ${band.label}, ${concentration}mg/5mL syrup</div>
