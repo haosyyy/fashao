@@ -19,6 +19,21 @@
     --line: #DDE7E3;
     --radius: 18px;
   }
+  html[data-theme="dark"]{
+    --bg: #101815;
+    --panel: #182420;
+    --ink: #E7EFEC;
+    --ink-soft: #93A69F;
+    --teal: #4FA391;
+    --teal-deep: #A9DECF;
+    --teal-tint: #1F2E29;
+    --coral: #E2836A;
+    --coral-tint: #33221D;
+    --line: #263531;
+  }
+  html{ transition: background-color .25s ease; }
+  body{ transition: background-color .25s ease, color .25s ease; }
+  .card, .input-row, .conc-opt label, .theme-toggle{ transition: background-color .25s ease, border-color .25s ease, color .25s ease; }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
@@ -212,9 +227,58 @@
     border-top:1px dashed var(--line);
   }
   .note strong{ color:var(--ink); }
+
+  .theme-toggle{
+    position:fixed;
+    top:16px;
+    right:16px;
+    z-index:50;
+    width:60px;
+    height:32px;
+    border-radius:20px;
+    border:1px solid var(--line);
+    background:var(--teal-tint);
+    cursor:pointer;
+    padding:0;
+    -webkit-appearance:none;
+    outline:none;
+    box-shadow: 0 2px 8px rgba(20,40,35,0.10);
+  }
+  .toggle-bg-icon{
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:13px;
+    opacity:0.5;
+    line-height:1;
+  }
+  .toggle-bg-icon.sun{ left:7px; }
+  .toggle-bg-icon.moon{ right:6px; }
+  .toggle-knob{
+    position:absolute;
+    top:3px;
+    left:3px;
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    background:var(--panel);
+    box-shadow:0 1px 3px rgba(0,0,0,0.20);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    line-height:1;
+    transition: transform .25s ease;
+  }
+  .theme-toggle.is-dark .toggle-knob{ transform: translateX(28px); }
 </style>
 </head>
 <body>
+<button id="themeToggle" class="theme-toggle" role="switch" aria-checked="false" aria-label="Toggle day and night mode" onclick="toggleTheme()">
+  <span class="toggle-bg-icon sun" aria-hidden="true">&#9728;&#65039;</span>
+  <span class="toggle-bg-icon moon" aria-hidden="true">&#127769;</span>
+  <span class="toggle-knob" id="toggleKnob"></span>
+</button>
 <div class="wrap">
 
   <header>
@@ -322,24 +386,54 @@ function syringeSVG(doseMl){
     const x = barrelX + (barrelW * i / 10);
     const isMajor = i % 2 === 0;
     const tickH = isMajor ? 10 : 6;
-    ticks += `<line x1="${x}" y1="${barrelY}" x2="${x}" y2="${barrelY + tickH}" stroke="#184A40" stroke-width="${isMajor ? 1.2 : 0.8}" opacity="${isMajor ? 0.55 : 0.3}"/>`;
+    ticks += `<line x1="${x}" y1="${barrelY}" x2="${x}" y2="${barrelY + tickH}" stroke="var(--teal-deep)" stroke-width="${isMajor ? 1.2 : 0.8}" opacity="${isMajor ? 0.55 : 0.3}"/>`;
     if (isMajor){
-      ticks += `<text x="${x}" y="${barrelY + barrelH + 11}" font-size="7" fill="#55655F" text-anchor="middle" font-family="Inter, sans-serif">${i}</text>`;
+      ticks += `<text x="${x}" y="${barrelY + barrelH + 11}" font-size="7" fill="var(--ink-soft)" text-anchor="middle" font-family="Inter, sans-serif">${i}</text>`;
     }
   }
 
   return `
   <svg class="vial" viewBox="0 0 160 62" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect x="6" y="29" width="6" height="4" rx="1" fill="#8FA69E"/>
-    <rect x="10" y="27" width="16" height="8" rx="1.5" fill="#B8C9C3"/>
-    <rect x="${barrelX}" y="${barrelY}" width="${barrelW}" height="${barrelH}" rx="4" fill="#F5F8F7" stroke="#2A6B5E" stroke-width="1.5"/>
+    <rect x="6" y="29" width="6" height="4" rx="1" fill="var(--ink-soft)" opacity="0.6"/>
+    <rect x="10" y="27" width="16" height="8" rx="1.5" fill="var(--ink-soft)" opacity="0.4"/>
+    <rect x="${barrelX}" y="${barrelY}" width="${barrelW}" height="${barrelH}" rx="4" fill="var(--panel)" stroke="var(--teal)" stroke-width="1.5"/>
     <clipPath id="barrelClip"><rect x="${barrelX}" y="${barrelY}" width="${barrelW}" height="${barrelH}" rx="4"/></clipPath>
-    <rect x="${barrelX}" y="${barrelY}" width="${fillW}" height="${barrelH}" fill="#2A6B5E" opacity="0.78" clip-path="url(#barrelClip)"/>
+    <rect x="${barrelX}" y="${barrelY}" width="${fillW}" height="${barrelH}" fill="var(--teal)" opacity="0.78" clip-path="url(#barrelClip)"/>
     ${ticks}
-    <rect x="${barrelX + barrelW}" y="${barrelY + 8}" width="26" height="6" fill="#2A6B5E"/>
-    <rect x="${barrelX + barrelW + 24}" y="${barrelY - 4}" width="6" height="30" rx="2" fill="#2A6B5E"/>
+    <rect x="${barrelX + barrelW}" y="${barrelY + 8}" width="26" height="6" fill="var(--teal)"/>
+    <rect x="${barrelX + barrelW + 24}" y="${barrelY - 4}" width="6" height="30" rx="2" fill="var(--teal)"/>
   </svg>`;
 }
+
+let manualTheme = null; // null = follow the clock; 'light'/'dark' = user override for this session
+
+function getAutoTheme(){
+  const hour = new Date().getHours();
+  return (hour >= 19 || hour < 7) ? 'dark' : 'light'; // 7pm-7am = night mode
+}
+
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  const toggle = document.getElementById('themeToggle');
+  const knob = document.getElementById('toggleKnob');
+  const isDark = theme === 'dark';
+  toggle.classList.toggle('is-dark', isDark);
+  toggle.setAttribute('aria-checked', String(isDark));
+  knob.innerHTML = isDark ? '&#127769;' : '&#9728;&#65039;';
+}
+
+function toggleTheme(){
+  const current = document.documentElement.getAttribute('data-theme');
+  manualTheme = current === 'dark' ? 'light' : 'dark';
+  applyTheme(manualTheme);
+}
+
+applyTheme(getAutoTheme());
+// Recheck the clock every few minutes so the app still flips over automatically
+// if the person hasn't manually overridden it during this session.
+setInterval(() => {
+  if (!manualTheme) applyTheme(getAutoTheme());
+}, 5 * 60 * 1000);
 
 function roundToNearestHalfHour(date){
   const ms = 30 * 60 * 1000;
