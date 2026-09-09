@@ -289,7 +289,7 @@
   </header>
 
   <div class="card">
-    <div class="field">
+    <div class="field" id="weightField">
       <label for="weight">Weight</label>
       <div class="input-row">
         <input type="number" id="weight" inputmode="decimal" placeholder="e.g. 14.5" step="0.1" min="0" max="30">
@@ -309,12 +309,30 @@
       <label>Syrup strength</label>
       <fieldset class="conc-options">
         <div class="conc-opt">
-          <input type="radio" name="conc" id="conc120" value="120" checked>
+          <input type="radio" name="conc" id="conc120" value="120" checked onchange="toggleAgeBandField()">
           <label for="conc120">120 mg / 5 mL<br><span style="font-weight:400;font-size:12px;">(cherry🍒 flavour)</span></label>
         </div>
         <div class="conc-opt">
-          <input type="radio" name="conc" id="conc250" value="250">
+          <input type="radio" name="conc" id="conc250" value="250" onchange="toggleAgeBandField()">
           <label for="conc250">250 mg / 5 mL<br><span style="font-weight:400;font-size:12px;">(orange🍊 flavour)</span></label>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="field" id="ageBandField" style="display:none;">
+      <label>Age band</label>
+      <fieldset class="conc-options">
+        <div class="conc-opt">
+          <input type="radio" name="ageband" id="age3to1" value="3mo-1y">
+          <label for="age3to1">3mo&ndash;1yr</label>
+        </div>
+        <div class="conc-opt">
+          <input type="radio" name="ageband" id="age1to6" value="1y-6y">
+          <label for="age1to6">1&ndash;6yrs</label>
+        </div>
+        <div class="conc-opt">
+          <input type="radio" name="ageband" id="age6to12" value="6y-12y">
+          <label for="age6to12">6&ndash;12yrs</label>
         </div>
       </fieldset>
     </div>
@@ -342,7 +360,7 @@
 
   <div style="text-align:center; margin-top:14px;">
     <a href="https://docs.google.com/forms/d/e/1FAIpQLSdhdgegUkmtH7aLib2mFkRaMJ3XAlGYk3VvRAcj80whCf-U_g/viewform" target="_blank" rel="noopener noreferrer" style="display:inline-flex; align-items:center; gap:6px; color:var(--teal); font-size:13px; font-weight:600; text-decoration:underline;">
-      <span aria-hidden="true">&#128172;</span>Share feedback
+      <span aria-hidden="true">&#128172;</span> Send feedback
     </a>
   </div>
 
@@ -363,6 +381,23 @@ const WEIGHT_TABLE = [
   { min: 18, max: 20, ml: 8.5, label: ">18\u201320 kg" },
   { min: 20, max: 24, ml: 10,  label: ">20\u201324 kg" },
 ];
+
+const AGE_BAND_LABELS = {
+  "3mo-1y": "3 months\u20131 year",
+  "1y-6y":  "1\u20136 years",
+  "6y-12y": "6\u201312 years",
+};
+
+const AGE_BAND_RANGES = {
+  "3mo-1y": { min: 1,   max: 2.5 },
+  "1y-6y":  { min: 2.5, max: 5 },
+  "6y-12y": { min: 5,   max: 10 },
+};
+
+function toggleAgeBandField(){
+  const is250 = document.querySelector('input[name="conc"]:checked').value === '250';
+  document.getElementById('ageBandField').style.display = is250 ? '' : 'none';
+}
 
 function findWeightBand(weight){
   if (weight === 2) return WEIGHT_TABLE[0]; // inclusive lower bound of first band
@@ -435,6 +470,7 @@ function toggleTheme(){
   applyTheme(manualTheme);
 }
 
+toggleAgeBandField();
 applyTheme(getAutoTheme());
 // Recheck the clock every few minutes so the app still flips over automatically
 // if the person hasn't manually overridden it during this session.
@@ -475,23 +511,45 @@ function calculate(){
     return;
   }
 
-  const band = findWeightBand(weight);
-
-  if (!band){
-    resultBox.classList.add('show');
-    const msg = weight < 2
-      ? "This chart starts at 2 kg. Please check with a doctor or pharmacist for dosing below this weight."
-      : "This chart covers up to 24 kg. Please check with a doctor or pharmacist for a weight above this.";
-    resultBox.innerHTML = `<div class="alert">${msg}</div>`;
-    return;
+  let band = null;
+  if (concentration === "120"){
+    band = findWeightBand(weight);
+    if (!band){
+      resultBox.classList.add('show');
+      const msg = weight < 2
+        ? "This chart starts at 2 kg. Please check with a doctor or pharmacist for dosing below this weight."
+        : "This chart covers up to 24 kg. Please check with a doctor or pharmacist for a weight above this.";
+      resultBox.innerHTML = `<div class="alert">${msg}</div>`;
+      return;
+    }
   }
 
-  // Base ml from chart is calibrated to 120mg/5ml. Same mg dose at 250mg/5ml needs less volume.
-  let doseMl = band.ml;
+  // 120mg/5mL uses the fixed weight-band chart.
+  // 250mg/5mL is calculated from weight (10-15mg/kg, at 50mg/mL), then kept within
+  // the selected age band's safe mL range.
+  let doseMl = band ? band.ml : 0;
+  let doseDisplay = `${doseMl}`;
   let concNote = "";
   if (concentration === "250"){
-    doseMl = Math.round((band.ml * (120/250)) * 100) / 100;
-    concNote = `<div class="row"><span class="k">Adjusted for strength</span><span class="v">120 mg/5 mL dose halved-rate for 250 mg/5 mL</span></div>`;
+    const ageBandInput = document.querySelector('input[name="ageband"]:checked');
+    if (!ageBandInput){
+      resultBox.classList.add('show');
+      resultBox.innerHTML = `<div class="alert">Select your child's age band to get a dose for the 250 mg/5 mL syrup.</div>`;
+      return;
+    }
+    const ageBandLabel = AGE_BAND_LABELS[ageBandInput.value];
+    const range = AGE_BAND_RANGES[ageBandInput.value];
+
+    const clamp = (v) => Math.min(Math.max(v, range.min), range.max);
+    const rawMin = Math.round((weight * 10 / 50) * 2) / 2;
+    const rawMax = Math.round((weight * 15 / 50) * 2) / 2;
+    const minMl = clamp(rawMin);
+    const maxMl = clamp(rawMax);
+
+    doseMl = Math.round(((minMl + maxMl) / 2) * 2) / 2; // used for the syringe visual
+    doseDisplay = `${minMl}&ndash;${maxMl}`;
+    concNote = `<div class="row"><span class="k">Age band</span><span class="v">${ageBandLabel}</span></div>
+                <div class="row"><span class="k">Safe range for age</span><span class="v">${range.min}&ndash;${range.max} mL</span></div>`;
   }
 
   const freq = frequencyFor(temp);
@@ -512,16 +570,20 @@ function calculate(){
   }
 
   resultBox.classList.add('show');
+  const captionText = band
+    ? `for ${band.label}, ${concentration}mg/5mL syrup`
+    : `for ${weight}kg, ${concentration}mg/5mL syrup`;
+  const enteredHtml = `<div class="row"><span class="k">Weight entered</span><span class="v">${weight} kg</span></div>
+                       <div class="row"><span class="k">Temperature entered</span><span class="v">${temp} &deg;C</span></div>`;
   resultBox.innerHTML = `
     <div class="dose-hero">
       ${syringeSVG(doseMl)}
       <div>
-        <div class="dose-num">${doseMl}<span>mL</span></div>
-        <div class="dose-caption">for ${band.label}, ${concentration}mg/5mL syrup</div>
+        <div class="dose-num" style="font-size:${concentration === '250' ? '34px' : '44px'};">${doseDisplay}<span>mL</span></div>
+        <div class="dose-caption">${captionText}</div>
       </div>
     </div>
-    <div class="row"><span class="k">Weight entered</span><span class="v">${weight} kg</span></div>
-    <div class="row"><span class="k">Temperature entered</span><span class="v">${temp} &deg;C</span></div>
+    ${enteredHtml}
     ${concNote}
     ${freqHtml}
   `;
