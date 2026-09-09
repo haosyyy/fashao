@@ -543,12 +543,15 @@ function calculate(){
     const clamp = (v) => Math.min(Math.max(v, range.min), range.max);
     const rawMin = Math.round((weight * 10 / 50) * 2) / 2;
     const rawMax = Math.round((weight * 15 / 50) * 2) / 2;
+    const rawPinpoint = Math.round((weight * 14 / 50) * 2) / 2;
     const minMl = clamp(rawMin);
     const maxMl = clamp(rawMax);
+    const pinpointMl = clamp(rawPinpoint);
 
-    doseMl = Math.round(((minMl + maxMl) / 2) * 2) / 2; // used for the syringe visual
-    doseDisplay = `${minMl}&ndash;${maxMl}`;
+    doseMl = pinpointMl; // pinpointed dose (~14mg/kg), used for the syringe visual too
+    doseDisplay = `${doseMl}`;
     concNote = `<div class="row"><span class="k">Age band</span><span class="v">${ageBandLabel}</span></div>
+                <div class="row"><span class="k">Dosing range (10&ndash;15 mg/kg)</span><span class="v">${minMl}&ndash;${maxMl} mL</span></div>
                 <div class="row"><span class="k">Safe range for age</span><span class="v">${range.min}&ndash;${range.max} mL</span></div>`;
   }
 
@@ -579,7 +582,7 @@ function calculate(){
     <div class="dose-hero">
       ${syringeSVG(doseMl)}
       <div>
-        <div class="dose-num" style="font-size:${concentration === '250' ? '34px' : '44px'};">${doseDisplay}<span>mL</span></div>
+        <div class="dose-num">${doseDisplay}<span>mL</span></div>
         <div class="dose-caption">${captionText}</div>
       </div>
     </div>
